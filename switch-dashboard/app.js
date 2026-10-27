@@ -1,0 +1,93 @@
+const SUPA={url:"https://fulanoopawqgvkngiqeg.supabase.co",key:"sb_publishable_I21ZVuV8WssnJOMSyi7Exw_9Lo5Oom0"};
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STATUS=['To do','In progress','Waiting','Done','To research','Researched','Not relevant','To confirm'],PRIO=['High','Medium','Low','To confirm'];
+const COLS={connections:[['met_at','Met at'],['contact','Contact'],['title','Title'],['company','Company'],['email','Email'],['phone','Phone'],['linkedin','LinkedIn'],['source','Source'],['notes','Notes'],['action_items','Action items'],['priority','Priority'],['status','Status']],
+competitors:[['company','Company'],['products','Products'],['what_they_do','What they do'],['seen_at','Seen at'],['source','Source'],['notes','Notes'],['action_items','Action items'],['status','Status']]};
+let S={pc:sessionStorage.getItem('sw_pc'),me:null,tab:'connections',data:{connections:[],competitors:[]},uploads:[],sort:{},q:'',fs:'',fp:'',mode:'table',thread:null,threads:[],msgs:[],att:[]};
+async function rpc(f,a){const r=await fetch(SUPA.url+'/rest/v1/rpc/'+f,{method:'POST',headers:{apikey:SUPA.key,'Content-Type':'application/json'},body:JSON.stringify({p_passcode:S.pc,...a})});
+ const t=await r.text();let j=null;try{j=t?JSON.parse(t):null}catch(e){}
+ if(!r.ok){if(r.status==403&&j&&/invalid passcode/.test(j.message)){logout();}throw new Error(j?.message||('HTTP '+r.status));}return j;}
+async function login(pc){S.pc=pc;const r=await rpc('switch_login',{});if(!r||!r.ok)throw new Error('Wrong passcode');S.me=r;sessionStorage.setItem('sw_pc',pc);}
+function logout(){sessionStorage.removeItem('sw_pc');location.reload();}
+$('#go').onclick=async()=>{$('#lerr').textContent='';try{await login($('#pc').value.trim());start()}catch(e){$('#lerr').textContent=e.message}};
+$('#pc').onkeydown=e=>{if(e.key==='Enter')$('#go').click()};$('#out').onclick=logout;
+$('#fab').onclick=()=>setTab('chat');
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+function setTab(t){S.tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render();if(t==='chat')loadThreads();if(t==='upload')loadUploads();if(t==='team')loadTeam();}
+async function start(){$('#login').hidden=true;$('#app').hidden=false;$('#fab').hidden=false;$('#who').textContent=S.me.display_name+' ('+S.me.role+')';$('#teamTab').hidden=S.me.role!=='admin';await loadAll();render();
+ setInterval(()=>{if(document.hidden||$('#dlg').open)return;loadAll().then(()=>{if(['connections','competitors'].includes(S.tab))render();else tiles()});if(S.tab==='upload')loadUploads()},10000);
+ setInterval(()=>{if(!document.hidden&&S.tab==='chat'&&S.thread)loadThread(true)},5000);}
+async function loadAll(){const[a,b]=await Promise.all([rpc('switch_list',{p_table:'connections'}),rpc('switch_list',{p_table:'competitors'})]);S.data.connections=a;S.data.competitors=b;}
+function cnt(arr,k){const o={};arr.forEach(r=>{const v=r[k]||'—';o[v]=(o[v]||0)+1});return Object.entries(o).map(([k,v])=>esc(k)+': '+v).join(' · ')}
+function tiles(){const c=S.data.connections,k=S.data.competitors,hi=c.filter(r=>r.priority==='High'),open=[...c,...k].filter(r=>r.action_items&&!/^(Done|Not relevant)$/.test(r.status||''));
+ $('#tiles').innerHTML=`<div class="tile"><b>${c.length}</b><small>Connections</small></div><div class="tile"><b>${k.length}</b><small>Competitors</small></div>
+ <div class="tile"><small>Connections by status</small><div>${cnt(c,'status')}</div></div><div class="tile"><small>By priority</small><div>${cnt(c,'priority')}</div></div>
+ <div class="tile"><small>Competitors by status</small><div>${cnt(k,'status')}</div></div>
+ <div class="tile"><small>High priority</small><div>${hi.map(r=>`<a href="#" data-open="connections:${r.id}">${esc(r.contact)}</a>`).join(', ')||'—'}</div></div>
+ <div class="tile"><b>${open.length}</b><small>Entries with open action items</small></div>`;
+ $('#tiles').querySelectorAll('[data-open]').forEach(a=>a.onclick=e=>{e.preventDefault();const[t,i]=a.dataset.open.split(':');openEntry(t,+i)});}
+function render(){tiles();const v=$('#view');if(S.tab==='connections'||S.tab==='competitors')return renderTable(v);if(S.tab==='upload')return renderUpload(v);if(S.tab==='chat')return renderChat(v);if(S.tab==='team')return renderTeam(v);}
+function rows(t){const q=S.q.toLowerCase();let r=S.data[t].filter(x=>(!q||COLS[t].some(([k])=>String(x[k]||'').toLowerCase().includes(q)))&&(!S.fs||x.status===S.fs)&&(!S.fp||x.priority===S.fp));
+ const s=S.sort[t];if(s)r=[...r].sort((a,b)=>String(a[s.k]||'').localeCompare(String(b[s.k]||''))*s.d);return r;}
+function renderTable(v){const t=S.tab,cols=COLS[t],r=rows(t),st=[...new Set(S.data[t].map(x=>x.status).filter(Boolean))];
+ v.innerHTML=`<div class="bar"><input id="q" placeholder="Search…" value="${esc(S.q)}"><select id="fs"><option value="">All statuses</option>${st.map(s=>`<option ${s===S.fs?'selected':''}>${esc(s)}</option>`).join('')}</select>
+ ${t==='connections'?`<select id="fp"><option value="">All priorities</option>${PRIO.map(s=>`<option ${s===S.fp?'selected':''}>${s}</option>`).join('')}</select>`:''}
+ <button id="mode" class="ghost">${S.mode==='table'?'Card view':'Table view'}</button><button id="add">+ Add</button></div>`+
+ (S.mode==='table'?`<div class="tw"><table><thead><tr>${cols.map(([k,l])=>`<th data-k="${k}">${l}${S.sort[t]?.k===k?(S.sort[t].d>0?' ▲':' ▼'):''}</th>`).join('')}<th>Last edited</th></tr></thead><tbody>${r.map(x=>`<tr data-id="${x.id}">${cols.map(([k])=>`<td>${k==='priority'?`<span class="pill ${esc(x[k])}">${esc(x[k])}</span>`:esc(x[k])}</td>`).join('')}<td class="muted">${esc(x.updated_by)}<br>${fmt(x.updated_at)}</td></tr>`).join('')}</tbody></table></div>`
+ :`<div class="cards">${r.map(x=>`<div class="card" data-id="${x.id}"><h3>${esc(t==='connections'?x.contact:x.company)}</h3><p class="muted">${esc(t==='connections'?[x.title,x.company].filter(Boolean).join(' · '):x.products)}</p>${x.priority?`<span class="pill ${esc(x.priority)}">${esc(x.priority)}</span> `:''}<span class="pill">${esc(x.status)}</span><p>${esc(x.action_items)}</p></div>`).join('')}</div>`)+`<p class="muted">${r.length} shown · refreshes every 10s</p>`;
+ $('#q').oninput=e=>{S.q=e.target.value;const p=e.target.selectionStart;renderTable(v);const q=$('#q');q.focus();q.setSelectionRange(p,p)};
+ $('#fs').onchange=e=>{S.fs=e.target.value;renderTable(v)};if($('#fp'))$('#fp').onchange=e=>{S.fp=e.target.value;renderTable(v)};
+ $('#mode').onclick=()=>{S.mode=S.mode==='table'?'cards':'table';renderTable(v)};$('#add').onclick=()=>edit(t,{});
+ v.querySelectorAll('th[data-k]').forEach(h=>h.onclick=()=>{const k=h.dataset.k,c=S.sort[t];S.sort[t]={k,d:c&&c.k===k?-c.d:1};renderTable(v)});
+ v.querySelectorAll('[data-id]').forEach(e=>e.onclick=()=>openEntry(t,+e.dataset.id));}
+const fmt=d=>d?new Date(d).toLocaleString('en-SG',{timeZone:'Asia/Singapore',dateStyle:'medium',timeStyle:'short'})+' SGT':'';
+function openEntry(t,id){const x=S.data[t].find(r=>r.id===id);if(!x){alert('Entry not found (it may have been deleted).');return}if(S.tab!==t)setTab(t);edit(t,x);}
+function edit(t,x){const f=$('#dform'),sel=(k,opts)=>`<select name="${k}"><option></option>${[...new Set([...opts,x[k]].filter(Boolean))].map(o=>`<option ${o===x[k]?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+ f.innerHTML=`<h3>${x.id?'Edit':'Add'} ${t==='connections'?'connection':'competitor'}</h3>`+COLS[t].map(([k,l])=>`<label>${l}${k==='priority'?sel(k,PRIO):k==='status'?sel(k,STATUS):(/notes|action|what|products/.test(k)?`<textarea name="${k}" rows="4">${esc(x[k])}</textarea>`:`<input name="${k}" value="${esc(x[k])}">`)}</label>`).join('')+
+ (x.id?`<p class="muted">Last edited by ${esc(x.updated_by)} · ${fmt(x.updated_at)}</p>`:'')+`<div class="row">${x.id?'<button type="button" id="del" class="danger">Delete</button>':''}<button value="cancel" class="ghost" formnovalidate>Cancel</button><button type="button" id="save">Save</button></div>`;
+ $('#dlg').showModal();
+ $('#save').onclick=async()=>{const row={};COLS[t].forEach(([k])=>row[k]=f.elements[k].value);if(x.id)row.id=x.id;try{await rpc('switch_save',{p_table:t,p_row:row});$('#dlg').close();await loadAll();render()}catch(e){alert(e.message)}};
+ if(x.id)$('#del').onclick=async()=>{if(!confirm('Delete this entry permanently?'))return;try{await rpc('switch_delete',{p_table:t,p_id:x.id});$('#dlg').close();await loadAll();render()}catch(e){alert(e.message)}};}
+const toB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
+const MAX=10*1024*1024;
+async function uploadFile(f,note,kind){if(f.size>MAX)throw new Error(f.name+' is larger than 10 MB');return rpc('switch_upload',{p_file_name:f.name||'file',p_mime:f.type||'application/octet-stream',p_b64:await toB64(f),p_note:note||'',p_kind:kind||'unknown'});}
+async function loadUploads(){try{S.uploads=await rpc('switch_list_uploads',{});if(S.tab==='upload')drawUploads()}catch(e){}}
+function renderUpload(v){v.innerHTML=`<div class="card" style="cursor:auto"><h3>Upload a business card, flyer, screenshot, PDF or document</h3><p class="muted">The assistant reads pending uploads on a schedule, extracts the details and adds a new entry (unknown fields marked "To confirm"). Max 10 MB per file.</p>
+ <div class="compose"><input type="file" id="uf" multiple accept="image/*,application/pdf,.doc,.docx,.txt,.csv,.xlsx"><textarea id="un" rows="2" placeholder="Note: who you met, what you discussed…"></textarea>
+ <select id="uk"><option value="contact">Contact / connection</option><option value="competitor">Competitor</option><option value="unknown">Not sure</option></select><button id="ub">Upload</button><span id="us" class="muted"></span></div></div><h3>Upload queue</h3><div id="uq"></div>`;
+ $('#ub').onclick=async()=>{const fs=[...$('#uf').files];if(!fs.length)return;$('#us').textContent='Uploading…';try{for(const f of fs)await uploadFile(f,$('#un').value,$('#uk').value);$('#us').textContent='Uploaded ✓';$('#uf').value='';$('#un').value='';loadUploads()}catch(e){$('#us').textContent=e.message}};drawUploads();}
+function entryLink(t,id){if(!t||!id)return'';const tb=t.replace('switch_','');return `<a href="#" data-open="${tb}:${id}">open created entry</a>`}
+function bindLinks(el){el.querySelectorAll('[data-open]').forEach(a=>a.onclick=e=>{e.preventDefault();const[t,i]=a.dataset.open.split(':');openEntry(t,+i)})}
+function drawUploads(){const q=$('#uq');if(!q)return;q.innerHTML=`<div class="tw"><table style="min-width:600px"><thead><tr><th>When</th><th>By</th><th>File</th><th>Kind</th><th>Note</th><th>Status</th><th>Result</th><th></th></tr></thead><tbody>${S.uploads.map(u=>`<tr><td>${fmt(u.created_at)}</td><td>${esc(u.uploaded_by)}</td><td><a href="#" data-dl="${u.id}">${esc(u.file_name)}</a></td><td>${esc(u.kind)}</td><td>${esc(u.note)}</td><td><span class="pill">${esc(u.status)}</span></td><td>${esc(u.result_summary)} ${entryLink(u.created_table,u.created_entry_id)}</td><td>${u.status==='pending'?`<button class="ghost" data-rm="${u.id}">Remove</button>`:''}</td></tr>`).join('')||'<tr><td colspan=8 class="muted">No uploads yet</td></tr>'}</tbody></table></div>`;
+ bindLinks(q);q.querySelectorAll('[data-dl]').forEach(a=>a.onclick=e=>{e.preventDefault();download(+a.dataset.dl)});
+ q.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(confirm('Remove this upload?')){await rpc('switch_delete_upload',{p_id:+b.dataset.rm});loadUploads()}});}
+async function download(id){const f=await rpc('switch_get_file',{p_id:id});if(!f)return alert('File not available');const a=document.createElement('a');a.href='data:'+f.mime+';base64,'+f.data_b64;a.download=f.file_name;a.click();}
+async function loadThreads(){S.threads=await rpc('switch_chat_threads_list',{});if(S.tab==='chat')drawThreads();}
+async function loadThread(silent){if(!S.thread){S.msgs=[];drawMsgs();return}const m=await rpc('switch_chat_thread',{p_thread_id:S.thread});if(silent&&JSON.stringify(m)===JSON.stringify(S.msgs))return;S.msgs=m;drawMsgs();if(silent)loadThreads();}
+function renderChat(v){v.innerHTML=`<div class="chat"><div class="threads"><button id="nt" style="width:100%">+ New chat</button><div id="tl"></div></div><div><div class="msgs" id="ms"></div>
+ <div class="compose"><textarea id="mt" rows="3" placeholder="Tell the assistant about a contact or competitor, or attach a card / flyer / voice note…"></textarea>
+ <div class="bar"><input type="file" id="mf" multiple accept="image/*,application/pdf,audio/*"><button class="ghost" id="rec">🎙 Record voice</button><button class="ghost" id="dict" ${('webkitSpeechRecognition' in window||'SpeechRecognition' in window)?'':'hidden'}>🗣 Dictate</button><button id="send">Send</button></div>
+ <div id="attl" class="muted"></div><p class="muted">Your chats are private to you. Replies typically arrive within a few minutes.</p></div></div></div>`;
+ $('#nt').onclick=()=>{S.thread=null;S.msgs=[];drawThreads();drawMsgs()};$('#send').onclick=send;$('#mf').onchange=e=>{S.att.push(...e.target.files);e.target.value='';drawAtt()};
+ $('#rec').onclick=toggleRec;$('#dict').onclick=dictate;drawThreads();drawMsgs();drawAtt();}
+function drawThreads(){const l=$('#tl');if(!l)return;l.innerHTML=S.threads.map(t=>`<div data-t="${t.id}" class="${t.id===S.thread?'on':''}">${esc(t.title)}${t.pending?' <span class="pill">working…</span>':''}<br><small class="muted">${fmt(t.updated_at)}</small></div>`).join('')||'<p class="muted">No chats yet</p>';
+ l.querySelectorAll('[data-t]').forEach(d=>d.onclick=()=>{S.thread=+d.dataset.t;drawThreads();loadThread()});}
+function drawMsgs(){const m=$('#ms');if(!m)return;m.innerHTML=S.msgs.map(x=>`<div class="m ${x.role}"><small>${esc(x.author||x.role)} · ${fmt(x.created_at)}</small>${esc(x.body)}${(x.attachments||[]).map(a=>`<div>📎 <a href="#" data-dl="${a.id}">${esc(a.file_name)}</a></div>`).join('')}${x.entry_id?`<div>${entryLink(x.entry_table,x.entry_id)}</div>`:''}${x.role==='user'&&x.status==='pending'?'<small>Assistant is working… replies typically arrive within a few minutes</small>':''}</div>`).join('')||'<p class="muted">Start a new conversation below.</p>';
+ bindLinks(m);m.querySelectorAll('[data-dl]').forEach(a=>a.onclick=e=>{e.preventDefault();download(+a.dataset.dl)});m.scrollTop=m.scrollHeight;}
+function drawAtt(){const a=$('#attl');if(a)a.innerHTML=S.att.map((f,i)=>`📎 ${esc(f.name)} (${Math.round(f.size/1024)} KB) <a href="#" data-x="${i}">✕</a>`).join(' &nbsp; ');a&&a.querySelectorAll('[data-x]').forEach(x=>x.onclick=e=>{e.preventDefault();S.att.splice(+x.dataset.x,1);drawAtt()})}
+async function send(){const body=$('#mt').value.trim();if(!body&&!S.att.length)return;const b=$('#send');b.disabled=true;b.textContent='Sending…';
+ try{const ids=[];for(const f of S.att)ids.push(await uploadFile(f,body,'unknown'));const r=await rpc('switch_chat_send',{p_thread_id:S.thread,p_body:body,p_attachment_ids:ids});S.thread=r.thread_id;S.att=[];$('#mt').value='';drawAtt();await loadThreads();await loadThread()}catch(e){alert(e.message)}b.disabled=false;b.textContent='Send';}
+let rec=null,chunks=[];
+async function toggleRec(){const b=$('#rec');if(rec){rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});rec=new MediaRecorder(st);chunks=[];rec.ondataavailable=e=>chunks.push(e.data);
+ rec.onstop=()=>{st.getTracks().forEach(t=>t.stop());const type=rec.mimeType||'audio/webm',ext=type.includes('mp4')?'m4a':type.includes('ogg')?'ogg':'webm';S.att.push(new File(chunks,'voice-'+Date.now()+'.'+ext,{type}));rec=null;b.textContent='🎙 Record voice';drawAtt()};rec.start();b.textContent='⏹ Stop recording'}catch(e){alert('Microphone not available: '+e.message)}}
+function dictate(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const r=new SR();r.lang='en-SG';r.interimResults=false;r.onresult=e=>{$('#mt').value+=($('#mt').value?' ':'')+[...e.results].map(x=>x[0].transcript).join(' ')};r.onerror=e=>alert('Dictation error: '+e.error);r.start();}
+let team=[];async function loadTeam(){try{team=await rpc('switch_team_list',{});renderTeam($('#view'))}catch(e){$('#view').innerHTML='<p>'+esc(e.message)+'</p>'}}
+function renderTeam(v){if(S.me.role!=='admin'){v.innerHTML='<p>Admins only.</p>';return}
+ v.innerHTML=`<div class="card" style="cursor:auto"><h3>Add a person</h3><div class="bar"><input id="tn" placeholder="Name"><input id="tp" type="password" placeholder="Passcode (min 8 chars)" autocomplete="new-password"><select id="tr"><option>editor</option><option>admin</option></select><button id="ta">Add</button></div><p class="muted">Share each passcode privately. Passcodes are stored hashed and can't be shown again.</p></div>
+ <div class="tw"><table style="min-width:500px"><thead><tr><th>Name</th><th>Role</th><th>Active</th><th>Added</th><th></th></tr></thead><tbody>${team.map(u=>`<tr><td>${esc(u.display_name)}</td><td>${u.role}</td><td>${u.active?'Yes':'No'}</td><td>${fmt(u.created_at)}</td><td><button class="ghost" data-pw="${u.id}">Change passcode</button> ${u.id!==S.me.id?`<button class="ghost" data-ac="${u.id}" data-v="${!u.active}">${u.active?'Deactivate':'Activate'}</button> <button class="danger" data-rm="${u.id}">Remove</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
+ const save=a=>rpc('switch_team_save',{p_id:null,p_display_name:null,p_role:null,p_new_passcode:null,p_active:null,...a});
+ $('#ta').onclick=async()=>{try{await save({p_display_name:$('#tn').value.trim(),p_new_passcode:$('#tp').value,p_role:$('#tr').value,p_active:true});loadTeam()}catch(e){alert(e.message)}};
+ v.querySelectorAll('[data-pw]').forEach(b=>b.onclick=async()=>{const p=prompt('New passcode (min 8 characters):');if(!p)return;try{await save({p_id:+b.dataset.pw,p_new_passcode:p});if(+b.dataset.pw===S.me.id){S.pc=p;sessionStorage.setItem('sw_pc',p)}alert('Passcode changed')}catch(e){alert(e.message)}});
+ v.querySelectorAll('[data-ac]').forEach(b=>b.onclick=async()=>{try{await save({p_id:+b.dataset.ac,p_active:b.dataset.v==='true'});loadTeam()}catch(e){alert(e.message)}});
+ v.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!confirm('Remove this person? Their private chats are deleted too.'))return;try{await rpc('switch_team_remove',{p_id:+b.dataset.rm});loadTeam()}catch(e){alert(e.message)}});}
+if(S.pc)login(S.pc).then(start).catch(()=>{sessionStorage.removeItem('sw_pc')});

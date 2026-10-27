@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SWITCH 2026 · Evolynx Dashboard</title><meta name="robots" content="noindex">
+<link rel="stylesheet" href="style.css"></head><body>
+<div id="login" class="login"><div class="box"><h1>SWITCH 2026 Dashboard</h1><p>Evolynx Tech · Blue Cloud</p>
+<input id="pc" type="password" placeholder="Your passcode" autocomplete="current-password"><button id="go">Sign in</button><div id="lerr" class="err"></div></div></div>
+<div id="app" hidden>
+<header><b>SWITCH 2026</b><nav id="tabs"><button data-t="connections" class="on">Connections</button><button data-t="competitors">Competitors</button><button data-t="upload">Upload</button><button data-t="chat">Assistant</button><button data-t="team" id="teamTab" hidden>Team</button></nav><span id="who"></span><button id="out" class="ghost">Sign out</button></header>
+<section id="tiles" class="tiles"></section>
+<main id="view"></main></div>
+<button id="fab" class="fab" hidden title="Chat with assistant">💬</button>
+<dialog id="dlg"><form method="dialog" id="dform"></form></dialog>
+<script src="app.js"></script></body></html>
