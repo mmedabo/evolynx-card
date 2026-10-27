@@ -2,9 +2,10 @@
 <title>SWITCH 2026 · Evolynx Dashboard</title><meta name="robots" content="noindex">
 <link rel="stylesheet" href="style.css"></head><body>
 <div id="login" class="login"><div class="box"><h1>SWITCH 2026 Dashboard</h1><p>Evolynx Tech · Blue Cloud</p>
-<input id="pc" type="password" placeholder="Your passcode" autocomplete="current-password"><button id="go">Sign in</button><div id="lerr" class="err"></div></div></div>
+<input id="pc" type="password" placeholder="Your passcode" autocomplete="current-password"><button id="go">Sign in</button><div id="lerr" class="err"></div><a href="#" id="inv">First time? Use invite code</a></div>
+<div class="box" id="invbox" hidden><h1>Set up your passcode</h1><input id="ic" placeholder="Invite code" autocomplete="off"><input id="np" type="password" placeholder="Choose a passcode (min 8 chars)" autocomplete="new-password"><input id="np2" type="password" placeholder="Confirm passcode" autocomplete="new-password"><button type="button" class="ghost" id="sug">Suggest a strong passcode</button><span id="sugv" class="muted"></span><button id="act">Activate &amp; sign in</button><div id="ierr" class="err"></div><a href="#" id="back">Back to sign in</a></div></div>
 <div id="app" hidden>
-<header><b>SWITCH 2026</b><nav id="tabs"><button data-t="connections" class="on">Connections</button><button data-t="competitors">Competitors</button><button data-t="upload">Upload</button><button data-t="chat">Assistant</button><button data-t="team" id="teamTab" hidden>Team</button></nav><span id="who"></span><button id="out" class="ghost">Sign out</button></header>
+<header><b>SWITCH 2026</b><nav id="tabs"><button data-t="connections" class="on">Connections</button><button data-t="competitors">Competitors</button><button data-t="upload">Upload</button><button data-t="chat">Assistant</button><button data-t="team" id="teamTab" hidden>Team</button></nav><span id="who"></span><button id="chg" class="ghost">Change my passcode</button><button id="out" class="ghost">Sign out</button></header>
 <section id="tiles" class="tiles"></section>
 <main id="view"></main></div>
 <button id="fab" class="fab" hidden title="Chat with assistant">💬</button>
