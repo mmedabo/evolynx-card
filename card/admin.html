@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Leads – Evolynx Tech</title><link rel="stylesheet" href="style.css"><script src="users.js"></script></head>
+<body><div class="wrap" style="max-width:1000px"><div class="brand">Evolynx Tech · Leads</div><div class="card">
+<form id="f"><label>Passcode</label><input id="p" type="password" autocomplete="current-password"><label>Card owner</label><select id="o" style="width:100%;padding:10px;margin:5px 0 10px"><option value="">All</option></select><button class="btn p" style="width:100%">Load leads</button></form><div class="err" id="e"></div>
+<div id="out"></div></div></div>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+USERS.forEach(u=>o.insertAdjacentHTML('beforeend',`<option value="${u.slug}">${esc(u.name)}</option>`));
+const cols=['created_at','card_owner','name','email','phone','company','role','note'];let rows=[];
+f.onsubmit=async ev=>{ev.preventDefault();e.textContent='Loading…';
+const r=await fetch(SUPA.url+'/rest/v1/rpc/get_vcard_leads',{method:'POST',headers:{apikey:SUPA.key,'Content-Type':'application/json'},body:JSON.stringify({p_passcode:p.value})});
+if(!r.ok){e.textContent='Wrong passcode.';out.innerHTML='';return}e.textContent='';rows=(await r.json()).filter(x=>!o.value||x.card_owner===o.value);
+out.innerHTML=`<p><b>${rows.length}</b> leads <button class="btn" id="csv" style="display:inline-block;padding:8px 14px">Export CSV</button></p><div style="overflow-x:auto"><table><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>${rows.map(x=>`<tr>${cols.map(c=>`<td>${esc(c==='created_at'?new Date(x[c]).toLocaleString('en-SG',{timeZone:'Asia/Singapore'}):x[c])}</td>`).join('')}</tr>`).join('')}</table></div>`;
+document.getElementById('csv').onclick=()=>{const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const t=[cols.join(',')].concat(rows.map(x=>cols.map(c=>q(x[c])).join(','))).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+t],{type:'text/csv'}));a.download='evolynx-leads.csv';a.click();};};
+</script></body></html>
