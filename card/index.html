@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Evolynx Tech – Digital Card</title><link rel="stylesheet" href="style.css"><script src="users.js"></script></head>
+<body><div class="wrap" id="app"></div>
+<script>
+const C=COMPANY,u=new URLSearchParams(location.search).get('u');const app=document.getElementById('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+const base=location.origin+location.pathname.replace(/index\.html$/,'');
+const U=USERS.find(x=>x.slug===u);
+if(!U){app.innerHTML='<div class="brand">'+C.brand+'</div>'+USERS.map(x=>`<div class="card" style="text-align:center"><h2>${esc(x.name)}</h2><div class="co">${esc(C.name)}</div><img src="qr/${x.slug}.svg" alt="QR" style="width:100%;max-width:300px;margin:12px auto;display:block"><a class="btn p" href="?u=${x.slug}">Open card</a> <a class="btn" style="margin-top:8px" href="qr/${x.slug}.svg" download>Download QR (SVG)</a></div>`).join('')+'<p class="muted" style="text-align:center"><a style="color:#bae6fd" href="admin.html">Leads (admin)</a></p>';}
+else{
+document.title=U.name+' – '+C.brand;
+const ini=(U.first[0]+U.last[0]).toUpperCase();
+app.innerHTML=`<div class="brand">${esc(C.brand)}</div><div class="card"><div class="av">${ini}</div><h1>${esc(U.name)}</h1><div class="co"><b>${esc(C.name)}</b><br>${esc(C.about)}<br><span class="muted">${esc(C.partner)}</span></div>
+<div class="row">${esc(U.phoneDisplay)}<br>${esc(U.email)}</div>
+<div class="btns"><a class="btn p" id="vcf" href="#">⬇ Save contact</a><a class="btn" href="tel:${U.phone}">📞 Call</a><a class="btn" href="mailto:${U.email}">✉️ Email</a><a class="btn" href="${U.linkedin}" target="_blank" rel="noopener">in LinkedIn</a><a class="btn" href="https://wa.me/${U.phone.replace('+','')}" target="_blank" rel="noopener">💬 WhatsApp</a></div></div>
+<div class="card" id="fc"><h2>Connect with ${esc(U.first)}</h2><p class="muted">Share your details so ${esc(U.first)} can get back to you.</p>
+<form id="f"><label>Name *</label><input name="name" required maxlength="120" autocomplete="name"><label>Email</label><input name="email" type="email" maxlength="200" autocomplete="email"><label>Phone</label><input name="phone" type="tel" maxlength="40" autocomplete="tel"><label>Company</label><input name="company" maxlength="200" autocomplete="organization"><label>Role</label><input name="role" maxlength="200" autocomplete="organization-title"><label>Note</label><textarea name="note" rows="3" maxlength="1000"></textarea><div class="err" id="e"></div><button class="btn p" style="width:100%">Share my details</button></form></div>`;
+document.getElementById('vcf').onclick=e=>{e.preventDefault();const v=['BEGIN:VCARD','VERSION:3.0',`N:${U.last};${U.first};;;`,`FN:${U.name}`,`ORG:${C.name}`,`TEL;TYPE=CELL:${U.phone}`,`EMAIL;TYPE=INTERNET,WORK:${U.email}`,`URL:${U.linkedin}`,`X-SOCIALPROFILE;TYPE=linkedin:${U.linkedin}`,'END:VCARD'].join('\r\n')+'\r\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([v],{type:'text/vcard'}));a.download=U.slug+'.vcf';a.click();};
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));for(const k in d)d[k]=d[k].trim()||null;const er=document.getElementById('e');
+if(!d.name){er.textContent='Please enter your name.';return}if(!d.email&&!d.phone){er.textContent='Please add an email or phone.';return}
+d.card_owner=U.slug;er.textContent='Sending…';
+try{const r=await fetch(SUPA.url+'/rest/v1/vcard_leads',{method:'POST',headers:{apikey:SUPA.key,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(d)});if(!r.ok)throw new Error(await r.text());
+document.getElementById('fc').innerHTML=`<div class="ok"><h2>Thank you, ${esc(d.name)}! 🙌</h2><p class="muted">${esc(U.first)} has received your details. Don't forget to save ${esc(U.first)}'s contact above.</p></div>`;}catch(x){er.textContent='Could not send, please try again.';}};
+}
+</script></body></html>
