@@ -1,11 +1,11 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Evolynx Tech – Digital Card</title><link rel="stylesheet" href="style.css"><script src="users.js"></script></head>
 <body><div class="wrap" id="app"></div>
 <script>
-const C=COMPANY,u=new URLSearchParams(location.search).get('u');const app=document.getElementById('app');
+const C=COMPANY,u=(location.hash.slice(1)||new URLSearchParams(location.search).get('u')||'').toLowerCase();window.onhashchange=()=>location.reload();const app=document.getElementById('app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
 const base=location.origin+location.pathname.replace(/index\.html$/,'');
 const U=USERS.find(x=>x.slug===u);
-if(!U){app.innerHTML='<div class="brand">'+C.brand+'</div>'+USERS.map(x=>`<div class="card" style="text-align:center"><h2>${esc(x.name)}</h2><div class="co">${esc(C.name)}</div><img src="qr/${x.slug}.svg" alt="QR" style="width:100%;max-width:300px;margin:12px auto;display:block"><a class="btn p" href="?u=${x.slug}">Open card</a> <a class="btn" style="margin-top:8px" href="qr/${x.slug}.svg" download>Download QR (SVG)</a></div>`).join('')+'<p class="muted" style="text-align:center"><a style="color:#bae6fd" href="admin.html">Leads (admin)</a></p>';}
+if(!U){app.innerHTML='<div class="brand">'+C.brand+'</div>'+USERS.map(x=>`<div class="card" style="text-align:center"><h2>${esc(x.name)}</h2><div class="co">${esc(C.name)}</div><img src="https://cdn.jsdelivr.net/gh/mmedabo/evolynx-card@main/card/qr/${x.slug}.svg" alt="QR" style="width:100%;max-width:300px;margin:12px auto;display:block"><a class="btn p" href="#${x.slug}">Open card</a> <a class="btn" style="margin-top:8px" href="https://cdn.jsdelivr.net/gh/mmedabo/evolynx-card@main/card/qr/${x.slug}.svg" target="_blank">Open QR full-size</a></div>`).join('')+'<p class="muted" style="text-align:center"><a style="color:#bae6fd" href="https://htmlpreview.github.io/?https://github.com/mmedabo/evolynx-card/blob/main/card/admin.html">Leads (admin)</a></p>';}
 else{
 document.title=U.name+' – '+C.brand;
 const ini=(U.first[0]+U.last[0]).toUpperCase();
