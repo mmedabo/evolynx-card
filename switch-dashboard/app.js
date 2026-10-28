@@ -1,9 +1,9 @@
 const SUPA={url:"https://fulanoopawqgvkngiqeg.supabase.co",key:"sb_publishable_I21ZVuV8WssnJOMSyi7Exw_9Lo5Oom0"};
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STATUS=['To do','In progress','Waiting','Done','To research','Researched','Not relevant','To confirm'],PRIO=['High','Medium','Low','To confirm'];
-const COLS={connections:[['met_at','Met at'],['contact','Contact'],['title','Title'],['company','Company'],['email','Email'],['phone','Phone'],['linkedin','LinkedIn'],['source','Source'],['notes','Notes'],['action_items','Action items'],['priority','Priority'],['status','Status']],
-competitors:[['company','Company'],['products','Products'],['what_they_do','What they do'],['seen_at','Seen at'],['source','Source'],['notes','Notes'],['action_items','Action items'],['status','Status']]};
-let S={pc:sessionStorage.getItem('sw_pc'),me:null,tab:'connections',data:{connections:[],competitors:[]},uploads:[],sort:{},q:'',fs:'',fp:'',mode:'table',thread:null,threads:[],msgs:[],att:[]};
+const COLS={connections:[['contact','Contact'],['company','Company'],['title','Title'],['priority','Priority'],['status','Status'],['action_items','Action items'],['notes','Notes'],['email','Email'],['phone','Phone'],['linkedin','LinkedIn'],['met_at','Met at'],['source','Source']],
+competitors:[['company','Company'],['status','Status'],['products','Products'],['what_they_do','What they do'],['action_items','Action items'],['notes','Notes'],['seen_at','Seen at'],['source','Source']]};
+let S={pc:sessionStorage.getItem('sw_pc'),me:null,tab:'connections',data:{connections:[],competitors:[]},uploads:[],sort:{},q:'',fs:'',fp:'',mode:'table',thread:null,chat:false,threads:[],msgs:[],att:[]};
 async function rpc(f,a){const r=await fetch(SUPA.url+'/rest/v1/rpc/'+f,{method:'POST',headers:{apikey:SUPA.key,'Content-Type':'application/json'},body:JSON.stringify({p_passcode:S.pc,...a})});
  const t=await r.text();let j=null;try{j=t?JSON.parse(t):null}catch(e){}
  if(!r.ok){if(r.status==403&&j&&/invalid passcode/.test(j.message)){logout();}throw new Error(j?.message||('HTTP '+r.status));}return j;}
@@ -18,47 +18,48 @@ $('#act').onclick=async()=>{$('#ierr').textContent='';const p=$('#np').value;if(
  try{const r=await fetch(SUPA.url+'/rest/v1/rpc/switch_redeem_invite',{method:'POST',headers:{apikey:SUPA.key,'Content-Type':'application/json'},body:JSON.stringify({p_invite:$('#ic').value,p_new_passcode:p})});const j=await r.json();if(!r.ok)throw new Error(j.message);if(!j.ok)throw new Error(j.error);await login(p);start()}catch(e){$('#ierr').textContent=e.message}};
 $('#chg').onclick=async()=>{const c=prompt('Current passcode:');if(!c)return;if(c!==S.pc)return alert('Current passcode is wrong');const n=prompt('New passcode (min 8 characters):');if(!n)return;if(n!==prompt('Confirm new passcode:'))return alert('Passcodes do not match');try{await rpc('switch_change_passcode',{p_new_passcode:n});S.pc=n;sessionStorage.setItem('sw_pc',n);alert('Passcode changed')}catch(e){alert(e.message)}};
 $('#pc').onkeydown=e=>{if(e.key==='Enter')$('#go').click()};$('#out').onclick=logout;
-$('#fab').onclick=()=>setTab('chat');
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
-function setTab(t){S.tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render();if(t==='chat')loadThreads();if(t==='upload')loadUploads();if(t==='team')loadTeam();}
-async function start(){$('#login').hidden=true;$('#app').hidden=false;$('#fab').hidden=false;$('#who').textContent=S.me.display_name+' ('+S.me.role+')';$('#teamTab').hidden=S.me.role!=='admin';await loadAll();render();
- setInterval(()=>{if(document.hidden||$('#dlg').open)return;loadAll().then(()=>{if(['connections','competitors'].includes(S.tab))render();else tiles()});if(S.tab==='upload')loadUploads()},10000);
- setInterval(()=>{if(!document.hidden&&S.tab==='chat'&&S.thread)loadThread(true)},5000);}
+$('#fab').onclick=()=>openChat();
+function openChat(){S.chat=true;document.body.classList.add('chat-open');$('#dock').hidden=false;$('#fab').hidden=true;renderChat($('#dockbody'));loadThreads();}
+function closeChat(){S.chat=false;document.body.classList.remove('chat-open');$('#dock').hidden=true;$('#fab').hidden=false;}
+$('#dockx').onclick=closeChat;
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>b.dataset.t==='chat'?openChat():setTab(b.dataset.t));
+function setTab(t){S.tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render();if(t==='upload')loadUploads();if(t==='team')loadTeam();}
+async function start(){$('#login').hidden=true;$('#app').hidden=false;$('#fab').hidden=false;$('#who').textContent=S.me.display_name+' ('+S.me.role+')';$('#teamTab').hidden=S.me.role!=='admin';await loadAll();loadUploads();render();
+ setInterval(()=>{if(document.hidden||$('#dlg').open)return;loadAll().then(()=>{if(['connections','competitors'].includes(S.tab))render();else tiles()});loadUploads()},10000);
+ setInterval(()=>{if(!document.hidden&&S.chat&&S.thread)loadThread(true)},5000);}
 async function loadAll(){const[a,b]=await Promise.all([rpc('switch_list',{p_table:'connections'}),rpc('switch_list',{p_table:'competitors'})]);S.data.connections=a;S.data.competitors=b;}
 function cnt(arr,k){const o={};arr.forEach(r=>{const v=r[k]||'—';o[v]=(o[v]||0)+1});return Object.entries(o).map(([k,v])=>esc(k)+': '+v).join(' · ')}
-function tiles(){const c=S.data.connections,k=S.data.competitors,hi=c.filter(r=>r.priority==='High'),open=[...c,...k].filter(r=>r.action_items&&!/^(Done|Not relevant)$/.test(r.status||''));
- $('#tiles').innerHTML=`<div class="tile"><b>${c.length}</b><small>Connections</small></div><div class="tile"><b>${k.length}</b><small>Competitors</small></div>
- <div class="tile"><small>Connections by status</small><div>${cnt(c,'status')}</div></div><div class="tile"><small>By priority</small><div>${cnt(c,'priority')}</div></div>
- <div class="tile"><small>Competitors by status</small><div>${cnt(k,'status')}</div></div>
- <div class="tile"><small>High priority</small><div>${hi.map(r=>`<a href="#" data-open="connections:${r.id}">${esc(r.contact)}</a>`).join(', ')||'—'}</div></div>
- <div class="tile"><b>${open.length}</b><small>Entries with open action items</small></div>`;
- $('#tiles').querySelectorAll('[data-open]').forEach(a=>a.onclick=e=>{e.preventDefault();const[t,i]=a.dataset.open.split(':');openEntry(t,+i)});}
-function render(){tiles();const v=$('#view');if(S.tab==='connections'||S.tab==='competitors')return renderTable(v);if(S.tab==='upload')return renderUpload(v);if(S.tab==='chat')return renderChat(v);if(S.tab==='team')return renderTeam(v);}
+function tiles(){const c=S.data.connections,k=S.data.competitors,hi=c.filter(r=>r.priority==='High'),fu=c.filter(r=>!/^(Done|Not relevant)$/.test(r.status||'')),kr=k.filter(r=>/research|confirm/i.test(r.status||'')||!r.status),pu=(S.uploads||[]).filter(u=>u.status==='pending');
+ const st=(n,l,t)=>`<button type="button" class="stat" data-go="${t}"><b>${n}</b><span>${l}</span></button>`;
+ $('#tiles').innerHTML=st(c.length,'Total contacts','connections')+st(hi.length,'High priority','connections:High')+st(fu.length,'To follow up','connections')+st(kr.length,'Competitors to research','competitors')+st(pu.length,'Pending uploads','upload');
+ $('#tiles').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const[t,p]=b.dataset.go.split(':');if(t==='connections'){S.fp=p||'';S.fs=''}setTab(t)});}
+function render(){tiles();const v=$('#view');if(S.tab==='connections'||S.tab==='competitors')return renderTable(v);if(S.tab==='upload')return renderUpload(v);if(S.tab==='team')return renderTeam(v);}
 function rows(t){const q=S.q.toLowerCase();let r=S.data[t].filter(x=>(!q||COLS[t].some(([k])=>String(x[k]||'').toLowerCase().includes(q)))&&(!S.fs||x.status===S.fs)&&(!S.fp||x.priority===S.fp));
  const s=S.sort[t];if(s)r=[...r].sort((a,b)=>String(a[s.k]||'').localeCompare(String(b[s.k]||''))*s.d);return r;}
 function renderTable(v){const t=S.tab,cols=COLS[t],r=rows(t),st=[...new Set(S.data[t].map(x=>x.status).filter(Boolean))];
- v.innerHTML=`<div class="bar"><input id="q" placeholder="Search…" value="${esc(S.q)}"><select id="fs"><option value="">All statuses</option>${st.map(s=>`<option ${s===S.fs?'selected':''}>${esc(s)}</option>`).join('')}</select>
- ${t==='connections'?`<select id="fp"><option value="">All priorities</option>${PRIO.map(s=>`<option ${s===S.fp?'selected':''}>${s}</option>`).join('')}</select>`:''}
- <button id="mode" class="ghost">${S.mode==='table'?'Card view':'Table view'}</button><button id="add">+ Add</button></div>`+
- (S.mode==='table'?`<div class="tw"><table><thead><tr>${cols.map(([k,l])=>`<th data-k="${k}">${l}${S.sort[t]?.k===k?(S.sort[t].d>0?' ▲':' ▼'):''}</th>`).join('')}<th>Last edited</th></tr></thead><tbody>${r.map(x=>`<tr data-id="${x.id}">${cols.map(([k])=>`<td>${k==='priority'?`<span class="pill ${esc(x[k])}">${esc(x[k])}</span>`:esc(x[k])}</td>`).join('')}<td class="muted">${esc(x.updated_by)}<br>${fmt(x.updated_at)}</td></tr>`).join('')}</tbody></table></div>`
- :`<div class="cards">${r.map(x=>`<div class="card" data-id="${x.id}"><h3>${esc(t==='connections'?x.contact:x.company)}</h3><p class="muted">${esc(t==='connections'?[x.title,x.company].filter(Boolean).join(' · '):x.products)}</p>${x.priority?`<span class="pill ${esc(x.priority)}">${esc(x.priority)}</span> `:''}<span class="pill">${esc(x.status)}</span><p>${esc(x.action_items)}</p></div>`).join('')}</div>`)+`<p class="muted">${r.length} shown · refreshes every 10s</p>`;
+ v.innerHTML=`<div class="bar"><label class="f grow">Search<input id="q" type="search" placeholder="Name, company, notes…" value="${esc(S.q)}"></label><label class="f">Status<select id="fs"><option value="">All statuses</option>${st.map(s=>`<option ${s===S.fs?'selected':''}>${esc(s)}</option>`).join('')}</select></label>
+ ${t==='connections'?`<label class="f">Priority<select id="fp"><option value="">All priorities</option>${PRIO.map(s=>`<option ${s===S.fp?'selected':''}>${s}</option>`).join('')}</select></label>`:''}
+ <button id="mode" class="ghost hide-sm">${S.mode==='table'?'Card view':'Table view'}</button><button id="add">+ Add</button></div>`+
+ ((S.mode==='table'&&!matchMedia('(max-width:700px)').matches)?`<div class="tw"><table><thead><tr>${cols.map(([k,l])=>`<th data-k="${k}">${l}${S.sort[t]?.k===k?(S.sort[t].d>0?' ▲':' ▼'):''}</th>`).join('')}<th>Last edited</th></tr></thead><tbody>${r.map(x=>`<tr data-id="${x.id}">${cols.map(([k])=>`<td class="c-${k}">${k==='priority'||k==='status'?pill(x[k]):/notes|action|what|products/.test(k)?`<div class="clip">${esc(x[k])}</div>`:esc(x[k])}</td>`).join('')}<td class="muted c-ed">${esc(x.updated_by)}<br>${fmt(x.updated_at)}</td></tr>`).join('')}</tbody></table></div>`
+ :`<div class="cards">${r.map(x=>`<button type="button" class="card" data-id="${x.id}"><h3>${esc(t==='connections'?x.contact:x.company)||'(no name)'}</h3><p class="sub">${esc(t==='connections'?[x.title,x.company].filter(Boolean).join(' · '):x.products)}</p><div class="pills">${x.priority?pill(x.priority):''}${pill(x.status)}</div>${acts(x.action_items)[0]?`<p class="next"><span>Next:</span> ${esc(acts(x.action_items)[0])}</p>`:''}</button>`).join('')}</div>`)+`<p class="muted foot">${r.length} shown · refreshes every 10s</p>`;
  $('#q').oninput=e=>{S.q=e.target.value;const p=e.target.selectionStart;renderTable(v);const q=$('#q');q.focus();q.setSelectionRange(p,p)};
  $('#fs').onchange=e=>{S.fs=e.target.value;renderTable(v)};if($('#fp'))$('#fp').onchange=e=>{S.fp=e.target.value;renderTable(v)};
  $('#mode').onclick=()=>{S.mode=S.mode==='table'?'cards':'table';renderTable(v)};$('#add').onclick=()=>edit(t,{});
  v.querySelectorAll('th[data-k]').forEach(h=>h.onclick=()=>{const k=h.dataset.k,c=S.sort[t];S.sort[t]={k,d:c&&c.k===k?-c.d:1};renderTable(v)});
  v.querySelectorAll('[data-id]').forEach(e=>e.onclick=()=>openEntry(t,+e.dataset.id));}
+const pcls=v=>/^(high)$/i.test(v)?'red':/^(medium|in progress|waiting|to do|to confirm)$/i.test(v)?'amber':/^(low|done|researched)$/i.test(v)?'green':'grey',pill=v=>v?`<span class="pill ${pcls(v)}">${esc(v)}</span>`:'',acts=v=>String(v||'').split(/\n|;|•/).map(s=>s.replace(/^\s*[-*\d.)]+\s*/,'').trim()).filter(Boolean);
 const fmt=d=>d?new Date(d).toLocaleString('en-SG',{timeZone:'Asia/Singapore',dateStyle:'medium',timeStyle:'short'})+' SGT':'';
 function openEntry(t,id){const x=S.data[t].find(r=>r.id===id);if(!x){alert('Entry not found (it may have been deleted).');return}if(S.tab!==t)setTab(t);edit(t,x);}
 function edit(t,x){const f=$('#dform'),sel=(k,opts)=>`<select name="${k}"><option></option>${[...new Set([...opts,x[k]].filter(Boolean))].map(o=>`<option ${o===x[k]?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
- f.innerHTML=`<h3>${x.id?'Edit':'Add'} ${t==='connections'?'connection':'competitor'}</h3>`+COLS[t].map(([k,l])=>`<label>${l}${k==='priority'?sel(k,PRIO):k==='status'?sel(k,STATUS):(/notes|action|what|products/.test(k)?`<textarea name="${k}" rows="4">${esc(x[k])}</textarea>`:`<input name="${k}" value="${esc(x[k])}">`)}</label>`).join('')+
- (x.id?`<p class="muted">Last edited by ${esc(x.updated_by)} · ${fmt(x.updated_at)}</p>`:'')+`<div class="row">${x.id?'<button type="button" id="del" class="danger">Delete</button>':''}<button value="cancel" class="ghost" formnovalidate>Cancel</button><button type="button" id="save">Save</button></div>`;
+ f.innerHTML=`<div class="dh"><h2>${x.id?esc((t==='connections'?x.contact:x.company)||'Edit'):'Add '+(t==='connections'?'connection':'competitor')}</h2><button value="cancel" class="ghost x" formnovalidate aria-label="Close">✕</button></div><div class="db">`+(acts(x.action_items).length?`<div class="checklist"><h4>Action items</h4><ul>${acts(x.action_items).map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`:'')+COLS[t].map(([k,l])=>`<label>${l}${k==='priority'?sel(k,PRIO):k==='status'?sel(k,STATUS):(/notes|action|what|products/.test(k)?`<textarea name="${k}" rows="4">${esc(x[k])}</textarea>`:`<input name="${k}" value="${esc(x[k])}">`)}</label>`).join('')+
+ (x.id?`<p class="muted">Last edited by ${esc(x.updated_by)} · ${fmt(x.updated_at)}</p>`:'')+`</div><div class="row df">${x.id?'<button type="button" id="del" class="danger">Delete</button>':''}<span class="sp"></span><button value="cancel" class="ghost" formnovalidate>Cancel</button><button type="button" id="save">Save</button></div>`;
  $('#dlg').showModal();
  $('#save').onclick=async()=>{const row={};COLS[t].forEach(([k])=>row[k]=f.elements[k].value);if(x.id)row.id=x.id;try{await rpc('switch_save',{p_table:t,p_row:row});$('#dlg').close();await loadAll();render()}catch(e){alert(e.message)}};
  if(x.id)$('#del').onclick=async()=>{if(!confirm('Delete this entry permanently?'))return;try{await rpc('switch_delete',{p_table:t,p_id:x.id});$('#dlg').close();await loadAll();render()}catch(e){alert(e.message)}};}
 const toB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
 const MAX=10*1024*1024;
 async function uploadFile(f,note,kind){if(f.size>MAX)throw new Error(f.name+' is larger than 10 MB');return rpc('switch_upload',{p_file_name:f.name||'file',p_mime:f.type||'application/octet-stream',p_b64:await toB64(f),p_note:note||'',p_kind:kind||'unknown'});}
-async function loadUploads(){try{S.uploads=await rpc('switch_list_uploads',{});if(S.tab==='upload')drawUploads()}catch(e){}}
+async function loadUploads(){try{S.uploads=await rpc('switch_list_uploads',{});if(S.tab==='upload')drawUploads();else if(S.tab!=='team')tiles()}catch(e){}}
 function renderUpload(v){v.innerHTML=`<div class="card" style="cursor:auto"><h3>Upload a business card, flyer, screenshot, PDF or document</h3><p class="muted">The assistant reads pending uploads on a schedule, extracts the details and adds a new entry (unknown fields marked "To confirm"). Max 10 MB per file.</p>
  <div class="compose"><input type="file" id="uf" multiple accept="image/*,application/pdf,.doc,.docx,.txt,.csv,.xlsx"><textarea id="un" rows="2" placeholder="Note: who you met, what you discussed…"></textarea>
  <select id="uk"><option value="contact">Contact / connection</option><option value="competitor">Competitor</option><option value="unknown">Not sure</option></select><button id="ub">Upload</button><span id="us" class="muted"></span></div></div><h3>Upload queue</h3><div id="uq"></div>`;
@@ -69,11 +70,11 @@ function drawUploads(){const q=$('#uq');if(!q)return;q.innerHTML=`<div class="tw
  bindLinks(q);q.querySelectorAll('[data-dl]').forEach(a=>a.onclick=e=>{e.preventDefault();download(+a.dataset.dl)});
  q.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(confirm('Remove this upload?')){await rpc('switch_delete_upload',{p_id:+b.dataset.rm});loadUploads()}});}
 async function download(id){const f=await rpc('switch_get_file',{p_id:id});if(!f)return alert('File not available');const a=document.createElement('a');a.href='data:'+f.mime+';base64,'+f.data_b64;a.download=f.file_name;a.click();}
-async function loadThreads(){S.threads=await rpc('switch_chat_threads_list',{});if(S.tab==='chat')drawThreads();}
+async function loadThreads(){S.threads=await rpc('switch_chat_threads_list',{});if(S.chat)drawThreads();}
 async function loadThread(silent){if(!S.thread){S.msgs=[];drawMsgs();return}const m=await rpc('switch_chat_thread',{p_thread_id:S.thread});if(silent&&JSON.stringify(m)===JSON.stringify(S.msgs))return;S.msgs=m;drawMsgs();if(silent)loadThreads();}
 function renderChat(v){v.innerHTML=`<div class="chat"><div class="threads"><button id="nt" style="width:100%">+ New chat</button><div id="tl"></div></div><div><div class="msgs" id="ms"></div>
- <div class="compose"><textarea id="mt" rows="3" placeholder="Tell the assistant about a contact or competitor, or attach a card / flyer / voice note…"></textarea>
- <div class="bar"><input type="file" id="mf" multiple accept="image/*,application/pdf,audio/*"><button class="ghost" id="rec">🎙 Record voice</button><button class="ghost" id="dict" ${('webkitSpeechRecognition' in window||'SpeechRecognition' in window)?'':'hidden'}>🗣 Dictate</button><button id="send">Send</button></div>
+ <div class="compose"> <label class="vh" for="mt">Message</label><textarea id="mt" rows="2" placeholder="Tell the assistant about a contact or competitor, or attach a card / flyer / voice note…"></textarea>
+ <div class="bar"><label class="ghost btn" for="mf">📎 Attach</label><input type="file" id="mf" class="vh" multiple accept="image/*,application/pdf,audio/*"><button class="ghost" id="rec">🎙 Record voice</button><button class="ghost" id="dict" ${('webkitSpeechRecognition' in window||'SpeechRecognition' in window)?'':'hidden'}>🗣 Dictate</button><button id="send" class="send">Send ➤</button></div>
  <div id="attl" class="muted"></div><p class="muted">Your chats are private to you. Replies typically arrive within a few minutes.</p></div></div></div>`;
  $('#nt').onclick=()=>{S.thread=null;S.msgs=[];drawThreads();drawMsgs()};$('#send').onclick=send;$('#mf').onchange=e=>{S.att.push(...e.target.files);e.target.value='';drawAtt()};
  $('#rec').onclick=toggleRec;$('#dict').onclick=dictate;drawThreads();drawMsgs();drawAtt();}
